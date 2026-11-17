@@ -120,45 +120,82 @@ docker logs yourllm
 
 ---
 
-## 4. Remote Deployment Architecture
+## 4. Remote & Cloud Deployment (Accessing Compute from Your Laptop)
 
-When your GPU runs on a remote cloud server (RunPod, Lambda, Hetzner, AWS) and your coding agent runs locally on your workstation, use one of the following secure connection patterns:
+If your GPU runs on a remote cloud instance (RunPod, Lambda Labs, AWS, GCP) or on a friend's GPU machine / homelab PC, you do not need to install the engine on your personal laptop—you simply point your coding agent (Cline / Roo Code / Continue) to the remote server URL.
 
 ```mermaid
 flowchart LR
-    subgraph ClientMachine ["Developer Laptop"]
-        Agent["Coding Agent (Cline / Roo Code)"]
-        LocalTunnel["Local Port 8000"]
+    subgraph ClientLaptop ["Your Laptop (Client)"]
+        Cline["Coding Agent (Cline / Roo Code)"]
     end
 
-    subgraph SecureTransit ["Encrypted Transit"]
-        direction TB
-        SSH["Option A: SSH Port Forwarding"]
-        VPN["Option B: Tailscale Mesh VPN"]
-        TLS["Option C: Reverse Proxy (HTTPS)"]
+    subgraph Transit ["Network / Internet"]
+        Direct["Option 1: Cloud Public IP / Proxy URL"]
+        VPN["Option 2: Tailscale Mesh VPN"]
+        Tunnel["Option 3: Ngrok / Cloudflare Tunnel"]
     end
 
-    subgraph GPUServer ["Remote GPU Server"]
-        YourLLM["YourLLM Gateway (127.0.0.1:8000)"]
-        vLLM["Internal vLLM (127.0.0.1:8001)"]
+    subgraph RemoteCompute ["GPU Host (Server / Friend's PC)"]
+        Gateway["YourLLM Gateway (:8000)"]
+        vLLM["vLLM Engine"]
         GPU["NVIDIA GPU"]
     end
 
-    Agent --> LocalTunnel
-    LocalTunnel -.-> SSH & VPN & TLS
-    SSH & VPN & TLS --> YourLLM
-    YourLLM --> vLLM --> GPU
+    Cline --> Transit
+    Transit --> Gateway --> vLLM --> GPU
 ```
 
-1. **Option A: SSH Port Forwarding (Recommended for Single Users):**
+### Scenario A: Cloud GPU Server (RunPod, Lambda Labs, AWS, GCP)
+Cloud servers live directly on the internet with dedicated public IP addresses:
+
+1. **Deploy the container on the cloud server:**
    ```bash
-   ssh -N -L 8000:127.0.0.1:8000 user@gpu-server-ip
+   docker run -d \
+     --name yourllm \
+     --gpus all \
+     -p 8000:8000 \
+     --shm-size=8g \
+     -v yourllm-data:/data \
+     --env-file .env \
+     --restart unless-stopped \
+     sanjaydocker832/yourllm:latest
    ```
-   Configure your coding agent with: `http://127.0.0.1:8000/v1`.
-2. **Option B: Private Mesh VPN (Tailscale / WireGuard):**
-   Bind the container to the host's private VPN IP: `-p <tailscale-ip>:8000:8000`.
-3. **Option C: Reverse Proxy with TLS (Caddy / Nginx):**
-   Terminate HTTPS using Caddy or Nginx with valid Let's Encrypt certificates and `proxy_buffering off;`.
+2. **Retrieve the generated API key from server logs:**
+   ```bash
+   docker logs yourllm
+   ```
+3. **Configure Cline on your laptop:**
+   - **API Provider:** `OpenAI Compatible`
+   - **Base URL:** `http://<SERVER_PUBLIC_IP>:8000/v1`
+   - **API Key:** `yllm_...`
+   - **Model ID:** Match your configured `YLLM_SERVED_MODEL_NAME` (e.g. `llama-3.1-8b` or `qwen-coder-1.5b`)
+
+> [!TIP]
+> **RunPod One-Click Proxy:** When exposing HTTP port `8000` on RunPod, you get an automatic HTTPS proxy URL (`https://<pod-id>-8000.proxy.runpod.net/v1`). You can paste this URL directly into Cline from anywhere without configuring firewall rules or domain certificates!
+
+---
+
+### Scenario B: Connecting to Another Laptop / Homelab PC Across the Internet
+Home laptops and homelabs sit behind residential Wi-Fi routers (NAT) and do not have public static IPs. Use one of these free tools to connect:
+
+1. **Tailscale (Recommended — Private Encrypted Mesh):**
+   - Install [Tailscale](https://tailscale.com) on both laptops (free).
+   - Your GPU host gets a secure Tailscale IP (e.g. `100.85.24.12`).
+   - In Cline on your laptop, configure Base URL: `http://100.85.24.12:8000/v1`.
+   - Works automatically across homes, coffee shops, and mobile networks with zero router configuration.
+
+2. **Ngrok / Cloudflare Tunnel (Instant Public HTTPS URL):**
+   - Run a tunnel on the GPU host:
+     ```powershell
+     ngrok http 8000
+     ```
+   - Copy the generated HTTPS address (e.g., `https://a1b2.ngrok-free.app/v1`) into Cline on your laptop with your API key.
+
+3. **Same Local Wi-Fi Network (LAN):**
+   - On the GPU host, start Docker with `-p 0.0.0.0:8000:8000`.
+   - Find the local IP on the GPU host via `ipconfig` (e.g. `192.168.1.45`).
+   - In Cline on your laptop, configure Base URL: `http://192.168.1.45:8000/v1`.
 
 ---
 
