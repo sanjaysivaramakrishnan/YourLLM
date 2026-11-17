@@ -342,7 +342,23 @@ uv run ruff check .
 
 ---
 
-## 9. Troubleshooting
+## 9. Verified Hardware & Coding Agent Results
+
+Tested end-to-end on real consumer GPU hardware (**Windows 11, Docker Desktop WSL2, NVIDIA GeForce RTX 3050 6 GB Laptop GPU, Driver 576.93**):
+
+| Model | Quantization | Context | Auth, API & Streaming | Cline Live Tool Calling (`write_to_file`) | Notes |
+|---|---|---|---|---|---|
+| `Qwen/Qwen2.5-Coder-1.5B-Instruct` | BF16 | 8,192 | Passed | Limited | Fast code generation & streaming; 1.5B struggles with multi-tool selection in Cline. |
+| `Qwen/Qwen2.5-3B-Instruct-AWQ` | 4-bit AWQ | 16,384 | Passed | **Passed** | Fits cleanly in 6 GB VRAM; executes real file creation & edits in Cline (most consistent with `.clinerules` and `temperature=0`). |
+
+### Key Integration Engineering Finding
+During live integration testing with **Cline**, upstream vLLM v0.7.3 omitted `id` and `type: "function"` on initial streaming tool-call deltas and emitted `finish_reason: "stop"` instead of `"tool_calls"`, causing client SDK stream errors. This was resolved by adding a zero-overhead SSE normalization layer (`src/yourllm/api/normalizer.py`) that preserves byte-for-byte passthrough for standard text streams while normalizing malformed tool-call chunks and guaranteeing a valid terminal finish reason before `[DONE]`.
+
+*(For autonomous multi-file edits across long multi-turn agent sessions without `.clinerules` guidance, 7B–32B models on 16–24 GB GPUs are recommended.)*
+
+---
+
+## 10. Troubleshooting
 
 - **503 Service Unavailable (`{"status":"LOADING_MODEL","ready":false}`):**
   Server is downloading or loading weights into VRAM. Monitor logs with `docker logs -f yourllm`.
@@ -357,7 +373,7 @@ uv run ruff check .
 
 ---
 
-## 10. Architecture Overview
+## 11. Architecture Overview
 
 ```text
        Coding Agents (Cline / Roo Code / Continue)
