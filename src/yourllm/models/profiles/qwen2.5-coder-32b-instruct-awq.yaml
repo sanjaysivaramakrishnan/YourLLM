@@ -1,0 +1,12 @@
+name: qwen2.5-coder-32b-instruct-awq
+hf_repo: Qwen/Qwen2.5-Coder-32B-Instruct-AWQ
+status: untested
+quantization: awq
+tool_call_parser: hermes
+chat_template: /opt/yourllm/templates/tool_chat_template_hermes.jinja
+recommended_max_model_len: 32768
+min_total_vram_gb: 24
+extra_vllm_args: []
+notes: "Experimental. 32B model quantized with 4-bit AWQ. AWQ kernel execution and tool calling via Hermes parser on Coder variants are experimental and unverified on physical hardware; compatibility cannot be inferred solely from profile schema validation."
+tested_with: []
+

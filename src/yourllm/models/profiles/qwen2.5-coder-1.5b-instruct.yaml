@@ -1,0 +1,11 @@
+name: qwen2.5-coder-1.5b-instruct
+hf_repo: Qwen/Qwen2.5-Coder-1.5B-Instruct
+status: untested
+quantization: null
+tool_call_parser: hermes
+chat_template: /opt/yourllm/templates/tool_chat_template_hermes.jinja
+recommended_max_model_len: 8192
+min_total_vram_gb: 6
+extra_vllm_args: []
+notes: "1.5B coding model tested on 6 GB VRAM GPU with hermes parser and template for tool calling."
+tested_with: ["curl"]
