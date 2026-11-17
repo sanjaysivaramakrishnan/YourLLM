@@ -275,9 +275,37 @@ docker exec -it yourllm yourllm-cli key revoke <key_id>
 
 ---
 
-## 7. Curated Model Profiles
+## 7. Supported Models & Curated Profiles
 
-YourLLM includes versioned model profiles pairing open-weight models with the correct tool-call parsers and bundled chat templates in `src/yourllm/models/profiles/`:
+### Running Any Open-Source Hugging Face Model
+YourLLM can run **any open-source text or coding LLM on Hugging Face** supported by **vLLM v0.7.3**—you do not need a pre-written profile. Simply set `YLLM_MODEL=<org/model-name>` in `.env`.
+
+**Supported model families include:**
+- **Qwen 2.5 & Qwen 2.5 Coder** (1.5B, 3B, 7B, 14B, 32B, 72B)
+- **Meta Llama 3 / 3.1 / 3.2 / 3.3** *(requires `HF_TOKEN` for gated Meta repositories)*
+- **DeepSeek** (DeepSeek-R1-Distill, DeepSeek-Coder-V2)
+- **Mistral / Mixtral / Codestral**, **Phi-3 / Phi-4**, **Gemma 2**, **IBM Granite**, **StarCoder2**
+- **Quantization formats:** FP16/BF16, **AWQ**, **GPTQ**, and **FP8**
+
+**Example — Running an Unprofiled Quantized Model on a 6 GB Laptop (`Qwen/Qwen2.5-3B-Instruct-AWQ`):**
+```ini
+YLLM_MODEL=Qwen/Qwen2.5-3B-Instruct-AWQ
+YLLM_SERVED_MODEL_NAME=qwen2.5-3b-awq
+YLLM_QUANTIZATION=awq
+YLLM_TOOL_CALL_PARSER=hermes
+YLLM_CHAT_TEMPLATE=/opt/yourllm/templates/tool_chat_template_hermes.jinja
+YLLM_GPU_MEMORY_UTILIZATION=0.90
+YLLM_MAX_MODEL_LEN=16384
+```
+
+**Compatibility notes:**
+- **Weight formats:** Uses Hugging Face **Safetensors** (FP16/BF16/AWQ/GPTQ/FP8)—not `.gguf` files (which are for llama.cpp/Ollama).
+- **Tool calling:** Supported parsers for `YLLM_TOOL_CALL_PARSER`: `hermes`, `llama3_json`, `mistral`, `granite`, `pythonic`, `openai`.
+- **Text-only:** Enforces text chat completions and tool calling (multimodal image/audio payloads are rejected).
+- **Engine baseline:** Pinned to **vLLM v0.7.3** for CUDA 12.1 compatibility across wide NVIDIA driver ranges.
+
+### Curated Model Profiles
+For zero-config setup (`YLLM_PROFILE=auto`), YourLLM includes versioned profiles pairing popular coding models with their verified tool-call parsers and bundled chat templates in `src/yourllm/models/profiles/`:
 
 | Profile Name | Model Repository | Quantization | Tool Parser | Recommended Context | Min VRAM | Supported Hardware |
 |---|---|---|---|---|---|---|
