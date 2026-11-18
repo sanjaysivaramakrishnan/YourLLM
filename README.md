@@ -74,9 +74,39 @@ docker build -t sanjaydocker832/yourllm:latest .
 
 ### Step 3: Run the Container
 
-You can start the server directly using CLI flags (quickest — no `.env` file required) or using an `--env-file`:
+You can start the server directly using CLI flags (quickest — no `.env` file required) or using an `--env-file`. Choose the syntax matching your shell:
 
-**Option A: Direct Command Line (Quickest — Verified on 6 GB RTX 3050 Laptop)**
+#### Windows (PowerShell):
+```powershell
+docker run -d `
+  --name yourllm `
+  --gpus all `
+  -p 127.0.0.1:8000:8000 `
+  --shm-size=8g `
+  -v yourllm-data:/data `
+  -e YLLM_MODEL="Qwen/Qwen2.5-3B-Instruct-AWQ" `
+  -e YLLM_SERVED_MODEL_NAME="qwen2.5-3b-awq" `
+  -e YLLM_QUANTIZATION="awq" `
+  -e YLLM_MAX_MODEL_LEN=16384 `
+  -e YLLM_GPU_MEMORY_UTILIZATION=0.90 `
+  --restart unless-stopped `
+  sanjaydocker832/yourllm:latest
+```
+
+*Or using an `.env` file in PowerShell:*
+```powershell
+docker run -d `
+  --name yourllm `
+  --gpus all `
+  -p 127.0.0.1:8000:8000 `
+  --shm-size=8g `
+  -v yourllm-data:/data `
+  --env-file .env `
+  --restart unless-stopped `
+  sanjaydocker832/yourllm:latest
+```
+
+#### Linux / macOS / Cloud (Bash):
 ```bash
 docker run -d \
   --name yourllm \
@@ -93,7 +123,7 @@ docker run -d \
   sanjaydocker832/yourllm:latest
 ```
 
-**Option B: Using `.env` Configuration File**
+*Or using an `.env` file in Bash:*
 ```bash
 docker run -d \
   --name yourllm \
