@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Architecture Invariant 1: Isolated gateway virtual environment
 # Gateway dependencies are decoupled from vLLM's system-level packages
 RUN python3 -m venv /opt/gateway && \
-    /opt/gateway/bin/pip install --no-cache-dir --upgrade pip uv
+    /opt/gateway/bin/pip install --no-cache-dir uv && \
+    rm -rf /root/.cache /tmp/*
 
 # Environment settings for gateway virtual environment and data paths
 ENV VIRTUAL_ENV=/opt/gateway \
@@ -23,24 +24,19 @@ ENV VIRTUAL_ENV=/opt/gateway \
 
 WORKDIR /app
 
-# Copy pyproject.toml, README.md, and source code for package build
+# Copy entrypoint script, packaging metadata, and source code
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY pyproject.toml README.md ./
 COPY src/ /app/src/
 
-# Install project dependencies into /opt/gateway venv
-RUN uv pip install --python /opt/gateway/bin/python --no-cache-dir -e .
-
-# Copy bundled templates to runtime path
-RUN mkdir -p /opt/yourllm/templates && \
-    cp -r /app/src/yourllm/models/templates/. /opt/yourllm/templates/
-
-# Symlink CLI into system PATH
-RUN ln -sf /opt/gateway/bin/yourllm-cli /usr/local/bin/yourllm-cli
-
-# Copy entrypoint script, strip Windows CRLF line endings, and make executable
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && \
-    chmod +x /usr/local/bin/docker-entrypoint.sh
+# Install gateway package into isolated venv, populate templates, symlink CLI, and configure entrypoint
+RUN uv pip install --python /opt/gateway/bin/python --no-cache-dir -e . && \
+    mkdir -p /opt/yourllm/templates && \
+    cp -r /app/src/yourllm/models/templates/. /opt/yourllm/templates/ && \
+    ln -sf /opt/gateway/bin/yourllm-cli /usr/local/bin/yourllm-cli && \
+    sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    rm -rf /root/.cache /tmp/*
 
 # Declare persistent storage volume
 VOLUME /data
@@ -57,4 +53,3 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 
 # Default entrypoint command running YourLLM gateway
 CMD ["/opt/gateway/bin/python", "-m", "yourllm.main"]
-

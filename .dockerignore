@@ -1,18 +1,56 @@
+# Version control
 .git/
+.github/
+
+# Virtual environments
 .venv/
+venv/
+ENV/
+env/
+
+# Python caches and bytecode
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+
+# Test & lint caches
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-tests/
-docs/
-*.db
-*.sqlite3
 .coverage
+htmlcov/
+tests/
+
+# Build artifacts
 dist/
 build/
 *.egg-info/
+*.egg
 
+# Databases & local data
+*.db
+*.sqlite
+*.sqlite3
+data/
+logs/
+*.log
+
+# Secrets & local configuration
+.env
+.env.*
+!.env.example
+
+# Development & internal documentation
+docs/
+prompts/
+unzipped_files/
+CLAUDE.md
+DECISIONS.md
+HUMAN_VERIFICATION.md
+
+# Editor and OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
