@@ -255,8 +255,9 @@ curl -s http://127.0.0.1:8000/v1/chat/completions \
 
 ---
 
-## 6. Key Management (`yourllm-cli`)
+## 6. CLI Management, Diagnostics & Benchmarking (`yourllm-cli`)
 
+### 6.1 API Key Lifecycle
 Manage API keys inside the running container using `docker exec`:
 
 ```bash
@@ -271,6 +272,28 @@ docker exec -it yourllm yourllm-cli key rotate <key_id>
 
 # Revoke an existing key immediately
 docker exec -it yourllm yourllm-cli key revoke <key_id>
+```
+
+### 6.2 Live Diagnostics (`doctor`)
+Verify health probes, authentication enforcement, model discovery, SSE streaming, and coding-agent tool-calling compliance (`id`, `type`, `finish_reason="tool_calls"`, `[DONE]`) in one command:
+
+```bash
+# Run against a local or remote YourLLM server (reads YLLM_API_KEY from env or --api-key)
+docker exec -it yourllm yourllm-cli doctor --api-key yllm_your_key_here
+
+# Or run from your laptop against a remote GPU host with JSON output
+yourllm-cli doctor --url http://<SERVER_IP>:8000 --api-key yllm_your_key_here --json
+```
+
+### 6.3 Throughput & Latency Benchmark (`bench`)
+Measure **Time-To-First-Token (TTFT)** and **Tokens/sec** streaming throughput across multiple iterations:
+
+```bash
+# Run 3 streaming benchmark iterations (default 128 max tokens)
+docker exec -it yourllm yourllm-cli bench --api-key yllm_your_key_here --runs 3 --max-tokens 128
+
+# Export machine-readable benchmark results
+yourllm-cli bench --url http://127.0.0.1:8000 --api-key yllm_your_key_here --runs 5 --json
 ```
 
 ---
@@ -331,7 +354,7 @@ uv run ruff check .
 
 | Component | Status | Description |
 |---|---|---|
-| **FastAPI Gateway Core & Routing** | Passed (140 tests) | OpenAI-compatible `/v1/chat/completions` and `/v1/models` endpoints. |
+| **FastAPI Gateway Core & Routing** | Passed (151 tests) | OpenAI-compatible `/v1/chat/completions` and `/v1/models` endpoints. |
 | **Streaming Normalization Layer** | Passed | Strict OpenAI chunk compliance (metadata injection, finish reasons, guaranteed `[DONE]`). |
 | **Client Disconnect Cancellation** | Passed | Detects client drop via `request.is_disconnected()`; commands vLLM to cancel generation. |
 | **Concurrency Limiter (429 Backpressure)** | Passed | Rejects excess requests beyond `YLLM_MAX_CONCURRENT_REQUESTS` with HTTP 429 and `Retry-After`. |
