@@ -23,7 +23,7 @@ YourLLM is a single Docker image that turns any NVIDIA GPU machine (cloud instan
 | Component | Minimum Requirement | Recommended |
 |---|---|---|
 | **GPU Architecture** | NVIDIA GPU with Compute Capability $\ge 7.0$ (RTX 20/30/40-series, GTX 16-series, T4, V100) | Ampere (RTX 3050/3060/3090), Ada (RTX 4060/4090), Hopper |
-| **VRAM** | $\ge 6$ GB (for 1.5B models like Qwen 2.5 Coder 1.5B on RTX 3050 laptops)<br>$\ge 16$ GB (for 7B/8B models) | $\ge 24$ GB (RTX 3090/4090) or cloud GPUs for 32B models |
+| **VRAM** | $\ge 6$ GB (for 3B AWQ / 1.5B models like Qwen 2.5 3B AWQ on RTX 3050 laptops)<br>$\ge 16$ GB (for 7B/8B models) | $\ge 24$ GB (RTX 3090/4090) or cloud GPUs for 32B models |
 | **Host Driver** | Linux: $\ge 525.60.13$<br>Windows WSL2: $\ge 527.41$ | Driver 535.x, 550.x, or 570.x+ |
 | **Container Engine**| Docker Engine 20.10+ with [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) or Docker Desktop (WSL2) | Docker Desktop 4+ / Docker 24+ |
 | **Shared Memory** | `--shm-size=4g` (1.5B models) / `--shm-size=8g` (7B/8B models) | `--shm-size=16g` |
@@ -40,12 +40,13 @@ Copy `.env.example` to `.env` and configure your model:
 cp .env.example .env
 ```
 
-**Example for 6 GB Laptop GPUs (RTX 3050/4050) — Qwen 2.5 Coder 1.5B:**
+**Recommended for 6 GB Laptop GPUs (RTX 3050/4050) — Qwen 2.5 3B AWQ (Hardware-Verified for Cline):**
 ```ini
-YLLM_MODEL=Qwen/Qwen2.5-Coder-1.5B-Instruct
-YLLM_SERVED_MODEL_NAME=qwen-coder-1.5b
+YLLM_MODEL=Qwen/Qwen2.5-3B-Instruct-AWQ
+YLLM_SERVED_MODEL_NAME=qwen2.5-3b-awq
+YLLM_QUANTIZATION=awq
 YLLM_GPU_MEMORY_UTILIZATION=0.90
-YLLM_MAX_MODEL_LEN=8192
+YLLM_MAX_MODEL_LEN=16384
 ```
 
 **Example for 16 GB+ GPUs (RTX 3090/4090, Cloud Instances) — Llama 3.1 8B:**
@@ -73,6 +74,26 @@ docker build -t sanjaydocker832/yourllm:latest .
 
 ### Step 3: Run the Container
 
+You can start the server directly using CLI flags (quickest — no `.env` file required) or using an `--env-file`:
+
+**Option A: Direct Command Line (Quickest — Verified on 6 GB RTX 3050 Laptop)**
+```bash
+docker run -d \
+  --name yourllm \
+  --gpus all \
+  -p 127.0.0.1:8000:8000 \
+  --shm-size=8g \
+  -v yourllm-data:/data \
+  -e YLLM_MODEL="Qwen/Qwen2.5-3B-Instruct-AWQ" \
+  -e YLLM_SERVED_MODEL_NAME="qwen2.5-3b-awq" \
+  -e YLLM_QUANTIZATION="awq" \
+  -e YLLM_MAX_MODEL_LEN=16384 \
+  -e YLLM_GPU_MEMORY_UTILIZATION=0.90 \
+  --restart unless-stopped \
+  sanjaydocker832/yourllm:latest
+```
+
+**Option B: Using `.env` Configuration File**
 ```bash
 docker run -d \
   --name yourllm \
@@ -102,19 +123,19 @@ docker logs yourllm
   YourLLM Inference Server — READY
 ==============================================================================
   State:        READY
-  Model:        meta-llama/Llama-3.1-8B-Instruct
-  Served Name:  llama-3.1-8b
-  Hardware:     NVIDIA GeForce RTX 4090 (24.0 GB VRAM, Driver: 550.54.14)
+  Model:        Qwen/Qwen2.5-3B-Instruct-AWQ
+  Served Name:  qwen2.5-3b-awq
+  Hardware:     NVIDIA GeForce RTX 3050 Laptop GPU (6.0 GB VRAM, Driver: 576.93)
   Base URL:     http://127.0.0.1:8000/v1
   Health URL:   http://127.0.0.1:8000/health/ready
 ------------------------------------------------------------------------------
   Bootstrap API Key (Created on first boot):
-    yllm_a1b2c3d4e5_0123456789abcdefghijklmnopqrstuv
+    yllm_89ecc9283a_L7InSTM6amN-VX2eEOBJZXM1wvm-uyAmMjKghKywHtg
 
   Configure your coding agent (Cline / Roo Code / Continue) with:
     Base URL: http://127.0.0.1:8000/v1
-    API Key:  yllm_a1b2c3d4e5_0123456789abcdefghijklmnopqrstuv
-    Model ID: llama-3.1-8b
+    API Key:  yllm_89ecc9283a_L7InSTM6amN-VX2eEOBJZXM1wvm-uyAmMjKghKywHtg
+    Model ID: qwen2.5-3b-awq
 ==============================================================================
 ```
 
@@ -169,7 +190,7 @@ Cloud servers live directly on the internet with dedicated public IP addresses:
    - **API Provider:** `OpenAI Compatible`
    - **Base URL:** `http://<SERVER_PUBLIC_IP>:8000/v1`
    - **API Key:** `yllm_...`
-   - **Model ID:** Match your configured `YLLM_SERVED_MODEL_NAME` (e.g. `llama-3.1-8b` or `qwen-coder-1.5b`)
+   - **Model ID:** Match your configured `YLLM_SERVED_MODEL_NAME` (e.g. `qwen2.5-3b-awq` or `llama-3.1-8b`)
 
 > [!TIP]
 > **RunPod One-Click Proxy:** When exposing HTTP port `8000` on RunPod, you get an automatic HTTPS proxy URL (`https://<pod-id>-8000.proxy.runpod.net/v1`). You can paste this URL directly into Cline from anywhere without configuring firewall rules or domain certificates!
