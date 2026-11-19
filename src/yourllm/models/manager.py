@@ -114,6 +114,27 @@ class ModelManager:
             return None
         return None
 
+    def find_cached_snapshot(self, repo_id: str) -> Path | None:
+        """Check if a complete snapshot for repo_id exists in local cache without network calls."""
+        safe_name = "models--" + repo_id.replace("/", "--")
+        snapshots_dir = self.cache_dir / safe_name / "snapshots"
+        if snapshots_dir.is_dir():
+            snapshots = [p for p in snapshots_dir.iterdir() if p.is_dir()]
+            if snapshots:
+                # Check if refs/main exists to pick current commit
+                refs_main = self.cache_dir / safe_name / "refs" / "main"
+                if refs_main.is_file():
+                    try:
+                        commit_hash = refs_main.read_text(encoding="utf-8").strip()
+                        commit_dir = snapshots_dir / commit_hash
+                        if commit_dir.is_dir():
+                            return commit_dir.resolve()
+                    except Exception:
+                        pass
+                latest_snapshot = max(snapshots, key=lambda p: p.stat().st_mtime)
+                return latest_snapshot.resolve()
+        return None
+
     def prepare_model(
         self,
         model_id_or_path: str,
@@ -141,18 +162,31 @@ class ModelManager:
             return local_candidate.resolve()
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Zero-network fast path: check if model snapshot already exists in local cache
+        cached_snapshot = self.find_cached_snapshot(model_id_or_path)
+        if cached_snapshot is not None:
+            logger.info(
+                "Model '%s' verified in local cache: %s (skipping all network checks).",
+                model_id_or_path,
+                cached_snapshot,
+            )
+            if progress_callback:
+                progress_callback(1.0)
+            return cached_snapshot
+
         token_str = self._get_token_str()
 
-        # 1. Pre-check disk space using repository metadata if available
+        # 2. Pre-check disk space using repository metadata if available
         repo_size = self.get_repo_size_bytes(model_id_or_path)
         if repo_size is not None:
             # Add 10% safety margin for temporary files / unpacked layers
             required_with_margin = int(repo_size * 1.1)
             self.check_disk_space(required_with_margin, target_path=self.cache_dir)
 
-        # 2. Download snapshot
+        # 3. Model not in cache — download snapshot from Hugging Face Hub
         logger.info(
-            "Preparing model snapshot for '%s' in cache directory: %s",
+            "Model '%s' not found in local cache. Initiating one-time download to %s",
             model_id_or_path,
             self.cache_dir,
         )

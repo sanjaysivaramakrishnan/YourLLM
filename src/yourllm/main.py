@@ -8,6 +8,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -140,6 +141,7 @@ async def _run_startup_sequence(app: FastAPI) -> None:
             logger.debug("Memory estimation skipped: %s", exc)
 
         # 4. State: DOWNLOADING_MODEL -> LOADING_MODEL
+        resolved_model_path: Path | None = None
         if not getattr(app.state, "mock_mode", False):
             if lifecycle.state == LifecycleState.PREPARING_MODEL:
                 lifecycle.transition_to(LifecycleState.DOWNLOADING_MODEL)
@@ -147,7 +149,7 @@ async def _run_startup_sequence(app: FastAPI) -> None:
                 cache_dir=settings.models_cache_dir,
                 hf_token=settings.hf_token,
             )
-            await asyncio.to_thread(manager.prepare_model, model_config.model)
+            resolved_model_path = await asyncio.to_thread(manager.prepare_model, model_config.model)
             if lifecycle.state == LifecycleState.DOWNLOADING_MODEL:
                 lifecycle.transition_to(LifecycleState.LOADING_MODEL)
         else:
@@ -160,6 +162,8 @@ async def _run_startup_sequence(app: FastAPI) -> None:
 
         # 6. Start supervised inference engine
         if backend is not None:
+            if resolved_model_path is not None and hasattr(backend, "set_model_path"):
+                backend.set_model_path(str(resolved_model_path))
             await backend.start()
             if not lifecycle.is_ready and getattr(backend, "is_ready", False):
                 lifecycle.transition_to(LifecycleState.READY)

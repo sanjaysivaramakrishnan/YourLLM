@@ -162,3 +162,33 @@ def test_resolve_default_vllm_executable(monkeypatch: pytest.MonkeyPatch) -> Non
     assert res3 == ["python3", "-m", "vllm.entrypoints.openai.api_server"]
 
 
+def test_build_vllm_args_local_model_path_override() -> None:
+    """Verify local snapshot path overrides --model while keeping served-model-name intact."""
+    settings = Settings(
+        YLLM_MODEL="Qwen/Qwen2.5-3B-Instruct-AWQ",
+        YLLM_SERVED_MODEL_NAME="qwen2.5-3b-awq",
+        YLLM_DATA_DIR=Path("/data"),
+    )
+    config = ResolvedModelConfig(
+        model="Qwen/Qwen2.5-3B-Instruct-AWQ",
+        served_model_name="qwen2.5-3b-awq",
+        profile_name=None,
+        profile_status=None,
+        quantization="awq",
+        tool_call_parser=None,
+        chat_template=None,
+        max_model_len=16384,
+        min_total_vram_gb=4,
+        extra_vllm_args=[],
+    )
+
+    local_snapshot = "/data/models/huggingface/models--Qwen--Qwen2.5-3B-Instruct-AWQ/snapshots/1234abcd"
+    args = build_vllm_args(settings=settings, config=config, model_path=local_snapshot)
+
+    # --model points to exact local directory on disk for 100% offline startup
+    assert args[args.index("--model") + 1] == local_snapshot
+    # --served-model-name points to clean public name for OpenAI client compatibility
+    assert args[args.index("--served-model-name") + 1] == "qwen2.5-3b-awq"
+
+
+

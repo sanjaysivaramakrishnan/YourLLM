@@ -160,3 +160,25 @@ def test_network_failure_wrapped(
     with pytest.raises(ModelManagerError) as exc_info:
         manager.prepare_model("test/repo")
     assert "Connection timed out" in exc_info.value.message
+
+
+@patch("yourllm.models.manager.snapshot_download")
+@patch("yourllm.models.manager.model_info")
+def test_prepare_cached_snapshot_zero_network(
+    mock_model_info: MagicMock,
+    mock_snapshot: MagicMock,
+    tmp_path: Path,
+) -> None:
+    cache_dir = tmp_path / "hf_cache"
+    snapshot_dir = cache_dir / "models--Qwen--Qwen2.5-3B-Instruct-AWQ" / "snapshots" / "abc123commit"
+    snapshot_dir.mkdir(parents=True)
+    (snapshot_dir / "config.json").write_text("{}", encoding="utf-8")
+
+    manager = ModelManager(cache_dir=cache_dir)
+    result = manager.prepare_model("Qwen/Qwen2.5-3B-Instruct-AWQ")
+
+    assert result == snapshot_dir.resolve()
+    # Confirm zero network calls were attempted
+    mock_snapshot.assert_not_called()
+    mock_model_info.assert_not_called()
+

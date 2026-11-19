@@ -50,6 +50,7 @@ def resolve_default_vllm_executable(vllm_python: str | None = None) -> list[str]
 def build_vllm_args(
     settings: Settings,
     config: ResolvedModelConfig,
+    model_path: str | None = None,
     host: str = "127.0.0.1",
     port: int = 8001,
 ) -> list[str]:
@@ -60,10 +61,12 @@ def build_vllm_args(
     - HF_TOKEN is NEVER placed into the argument list (passed solely via environment).
     - Uses loopback host 127.0.0.1 and internal port.
     - Sets persistent Hugging Face cache download directory.
+    - Uses resolved local model path on disk if available to guarantee 100% offline startup.
     """
+    target_model = model_path or config.model
     args: list[str] = [
         "--model",
-        config.model,
+        target_model,
         "--served-model-name",
         config.served_model_name,
         "--host",
@@ -129,6 +132,7 @@ class VLLMBackend(InferenceBackend):
         self,
         settings: Settings,
         model_config: ResolvedModelConfig,
+        model_path: str | None = None,
         process_manager: VLLMProcessManager | None = None,
         lifecycle: LifecycleManager | None = None,
         vllm_executable: list[str] | None = None,
@@ -138,6 +142,7 @@ class VLLMBackend(InferenceBackend):
     ) -> None:
         self.settings = settings
         self.model_config = model_config
+        self.model_path = model_path
         self.lifecycle = lifecycle
         self.vllm_executable = vllm_executable or resolve_default_vllm_executable(settings.vllm_python)
         self.ready_timeout_s = ready_timeout_s
@@ -151,6 +156,10 @@ class VLLMBackend(InferenceBackend):
             on_unexpected_exit=self._on_process_unexpected_exit,
         )
         self._is_ready = False
+
+    def set_model_path(self, path: str) -> None:
+        """Set resolved local snapshot directory path for offline inference."""
+        self.model_path = path
 
     @property
     def model_name(self) -> str:
@@ -183,6 +192,7 @@ class VLLMBackend(InferenceBackend):
         cmd_args = build_vllm_args(
             settings=self.settings,
             config=self.model_config,
+            model_path=self.model_path,
             host=self.internal_host,
             port=self.internal_port,
         )
@@ -194,6 +204,13 @@ class VLLMBackend(InferenceBackend):
         if self.settings.hf_token:
             env["HF_TOKEN"] = self.settings.hf_token.get_secret_value()
             env["HUGGING_FACE_HUB_TOKEN"] = self.settings.hf_token.get_secret_value()
+
+        # Enforce offline execution when model is loaded from local snapshot path
+        # or when HF_HUB_OFFLINE is set in the environment
+        if self.model_path or os.environ.get("HF_HUB_OFFLINE") == "1":
+            env["HF_HUB_OFFLINE"] = "1"
+            env["TRANSFORMERS_OFFLINE"] = "1"
+            env["HF_DATASETS_OFFLINE"] = "1"
 
         # 3. Transition lifecycle to STARTING_INFERENCE if legal
         if self.lifecycle and self.lifecycle.state != LifecycleState.STARTING_INFERENCE:
@@ -271,6 +288,8 @@ class VLLMBackend(InferenceBackend):
                             data = models_resp.json().get("data", [])
                             model_ids = {m.get("id") for m in data if isinstance(m, dict)}
                             expected_ids = {self.model_name, self.model_config.model}
+                            if self.model_path:
+                                expected_ids.add(self.model_path)
                             if any(mid in expected_ids for mid in model_ids):
                                 self._is_ready = True
                                 logger.info(

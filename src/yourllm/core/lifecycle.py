@@ -71,6 +71,7 @@ LEGAL_TRANSITIONS: dict[LifecycleState, set[LifecycleState]] = {
         LifecycleState.STOPPING,
     },
     LifecycleState.STARTING_INFERENCE: {
+        LifecycleState.STARTING_INFERENCE,  # Bounded restart on crash
         LifecycleState.INITIALIZING_GATEWAY,
         LifecycleState.READY,
         LifecycleState.FAILED,

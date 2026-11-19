@@ -86,11 +86,25 @@ def fetch_model_config(
     if hf_hub_download is None:
         return {}
 
+    # Try local cache first to avoid unnecessary network queries
     try:
         downloaded_path = hf_hub_download(
             repo_id=model_id_or_path,
             filename="config.json",
             token=hf_token,
+            local_files_only=True,
+        )
+        with open(downloaded_path, encoding="utf-8") as f:
+            return json.load(f)  # type: ignore[no-any-return]
+    except Exception:
+        pass
+
+    try:
+        downloaded_path = hf_hub_download(
+            repo_id=model_id_or_path,
+            filename="config.json",
+            token=hf_token,
+            local_files_only=False,
         )
         with open(downloaded_path, encoding="utf-8") as f:
             return json.load(f)  # type: ignore[no-any-return]
