@@ -163,6 +163,18 @@ def resolve_model_config(
     base_min_vram = profile.min_total_vram_gb if profile else None
     extra_args = list(profile.extra_vllm_args) if profile else []
 
+    # Heuristic fallback for unprofiled popular models to guarantee tool calling support
+    if profile is None:
+        repo_lower = settings.model.lower()
+        if "qwen" in repo_lower:
+            base_parser = "hermes"
+            base_template = "/opt/yourllm/templates/tool_chat_template_hermes.jinja"
+            logger.info("Auto-inferred tool_call_parser='hermes' for Qwen model '%s'.", settings.model)
+        elif "llama-3" in repo_lower or "llama3" in repo_lower:
+            base_parser = "llama3_json"
+            base_template = "/opt/yourllm/templates/tool_chat_template_llama3_json.jinja"
+            logger.info("Auto-inferred tool_call_parser='llama3_json' for Llama-3 model '%s'.", settings.model)
+
     # Apply environment overrides
     quantization = base_quant
     if settings.quantization is not None:

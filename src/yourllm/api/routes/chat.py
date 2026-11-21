@@ -133,6 +133,11 @@ async def chat_completions(
             hint=f"Configured model identifier: '{served_name}'.",
         )
 
+    # Normalize model in upstream payload to served_name so vLLM model check always matches
+    if data.get("model") != served_name:
+        data["model"] = served_name
+        raw_body = json.dumps(data).encode("utf-8")
+
     # 5. Concurrency backpressure check
     acquired = await limiter.try_acquire()
     if not acquired:
@@ -198,6 +203,11 @@ async def _handle_non_streaming(
             except Exception:
                 pass
         else:
+            logger.warning(
+                "Upstream vLLM returned HTTP %d for chat completion: %s",
+                upstream_resp.status_code,
+                upstream_resp.text[:500],
+            )
             metrics.record_upstream_error()
 
         metrics.request_completed(
@@ -258,6 +268,15 @@ def _handle_streaming(
                 headers=dict(request.headers),
             ) as stream_resp:
                 success = stream_resp.status_code == 200
+                if not success:
+                    err_bytes = await stream_resp.aread()
+                    logger.warning(
+                        "Upstream vLLM streaming returned HTTP %d: %s",
+                        stream_resp.status_code,
+                        err_bytes.decode(errors="replace")[:500],
+                    )
+                    yield err_bytes
+                    return
                 async for chunk in stream_resp.aiter_raw():
                     # Check for client disconnect
                     if await request.is_disconnected():

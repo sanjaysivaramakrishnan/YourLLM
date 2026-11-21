@@ -263,3 +263,28 @@ async def test_upstream_timeout_maps_to_504(chat_fixture: dict) -> None:
         )
         assert resp.status_code == 504
         assert resp.json()["error"]["code"] == "gateway_timeout"
+
+
+@pytest.mark.asyncio
+async def test_model_alias_normalized_upstream(chat_fixture: dict) -> None:
+    """Verify that sending repo ID (YLLM_MODEL) is accepted and normalized to served_model_name."""
+    client: httpx.AsyncClient = chat_fixture["client"]
+    key: str = chat_fixture["key"]
+    fake_server: FakeVLLMServer = chat_fixture["fake_server"]
+
+    # Send full repo name instead of served_model_name
+    payload = {
+        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "messages": [{"role": "user", "content": "Ping"}],
+        "stream": False,
+    }
+    resp = await client.post(
+        "/v1/chat/completions",
+        json=payload,
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    assert resp.status_code == 200
+    # The forwarded payload must have been rewritten to the primary served name
+    last_req = fake_server.requests_received[-1]
+    assert last_req["payload"]["model"] == "llama-3.1-8b"
+

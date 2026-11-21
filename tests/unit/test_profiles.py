@@ -22,13 +22,14 @@ def test_shipped_profiles_validity() -> None:
     profiles = registry.list_all()
 
     # Curated shipped profiles
-    assert 2 <= len(profiles) <= 4
+    assert 2 <= len(profiles) <= 6
 
     names = {p.name for p in profiles}
     assert "llama-3.1-8b-instruct" in names
     assert "qwen2.5-7b-instruct" in names
     assert "qwen2.5-coder-32b-instruct-awq" in names
     assert "qwen2.5-coder-1.5b-instruct" in names
+    assert "qwen2.5-3b-instruct-awq" in names
 
     for p in profiles:
         # All shipped profiles must be initially marked "untested"
@@ -95,6 +96,18 @@ def test_resolve_unprofiled_model() -> None:
     assert resolved.profile_name is None
     assert resolved.profile_status is None
     assert resolved.tool_call_parser is None
+
+
+def test_resolve_unprofiled_qwen_auto_infers_hermes() -> None:
+    settings = Settings(
+        YLLM_MODEL="Qwen/Qwen2.5-14B-Instruct-AWQ",
+        YLLM_PROFILE="auto",
+    )
+    resolved = resolve_model_config(settings)
+
+    assert resolved.tool_call_parser == "hermes"
+    assert resolved.chat_template == "/opt/yourllm/templates/tool_chat_template_hermes.jinja"
+
 
 
 def test_resolve_env_overrides_with_warnings() -> None:
